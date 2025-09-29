@@ -1,28 +1,33 @@
-// src/views/FriendsView.jsx
 import React, { useEffect, useMemo, useState } from 'react';
 import { ID } from 'appwrite';
 import { account, databases } from '../appwrite'; // from your appwrite.js
-import '../App.css'; // keep your existing styles
 
-// Read IDs from Vite env (same names you set locally and on Vercel)
-const DB  = import.meta.env.VITE_DB_ID;
-const COL = import.meta.env.VITE_COL_FRIENDS;
+const DB_ID  = import.meta.env.VITE_DB_ID;
+const COL_ID = import.meta.env.VITE_COL_FRIENDS;
 
-// Helpers
-const toISO = (val) => (val ? new Date(val).toISOString() : null);
-const fmtDate = (iso) =>
-  !iso ? '' : new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' });
+const toISO = (v) => (v ? new Date(v).toISOString() : null);
+const daysSince = (iso) => {
+  if (!iso) return null;
+  const then = new Date(iso);
+  if (isNaN(then)) return null;
+  const diff = Math.floor((Date.now() - then.getTime()) / 86_400_000);
+  return diff < 0 ? 0 : diff;
+};
+const sinceLabel = (iso) => {
+  const d = daysSince(iso);
+  if (d === null) return '—';
+  if (d === 0) return 'Today';
+  return `${d}d since catch-up`;
+};
 
 export default function FriendsView() {
-  // Connection / status
-  const [connectedMsg, setConnectedMsg] = useState('Connecting…');
-  const [error, setError] = useState('');
-
-  // Data
-  const [friends, setFriends] = useState([]);
+  const [status, setStatus] = useState('Connecting…');
+  const [error, setError]   = useState('');
   const [loading, setLoading] = useState(true);
+  const [friends, setFriends] = useState([]);
 
-  // Form state
+  // add form
+  const [showAdd, setShowAdd] = useState(false);
   const [name, setName] = useState('');
   const [relationship, setRelationship] = useState('Friend');
   const [phone, setPhone] = useState('');
@@ -31,74 +36,49 @@ export default function FriendsView() {
   const [lastSent, setLastSent] = useState('');
   const [lastCatchup, setLastCatchup] = useState('');
 
-  // Which columns to show in the list
-  const [show, setShow] = useState({
-    relationship: true,
-    phone: false,
-    birthday: false,
-    received: false,
-    sent: false,
-    catchup: false,
-  });
+  // filters
+  const [search, setSearch] = useState('');
+  const [chip, setChip] = useState('All'); // All | Close | Family
 
-  // Ensure we have an anonymous session, then load data
   useEffect(() => {
-    let mounted = true;
-
-    const go = async () => {
+    let alive = true;
+    (async () => {
       try {
-        // If no session, create anonymous
-        try {
-          await account.get();
-        } catch {
-          await account.createAnonymousSession();
-        }
-        const user = await account.get();
-        if (!mounted) return;
-        setConnectedMsg(`Connected ✓`);
-      } catch (err) {
-        if (!mounted) return;
-        setError(err?.message || 'Failed to connect');
+        try { await account.get(); } catch { await account.createAnonymousSession(); }
+        if (!alive) return;
+        setStatus('Connected ✓');
+      } catch (e) {
+        if (!alive) return;
+        setError(e?.message || 'Failed to connect');
       }
       await loadFriends();
-    };
-
-    go();
-    return () => { mounted = false; };
-    // eslint-disable-next-line react-hooks/exhaustive-deps
+    })();
+    return () => { alive = false; };
   }, []);
 
   const loadFriends = async () => {
     try {
       setLoading(true);
-      const res = await databases.listDocuments(DB, COL);
-      // Sort by Name ascending
+      const res = await databases.listDocuments(DB_ID, COL_ID);
       const rows = [...res.documents].sort((a, b) =>
         (a.Name || '').localeCompare(b.Name || '', undefined, { sensitivity: 'base' })
       );
       setFriends(rows);
       setError('');
-    } catch (err) {
-      setError(err?.message || 'Failed to load friends');
+    } catch (e) {
+      setError(e?.message || 'Failed to load friends');
     } finally {
       setLoading(false);
     }
   };
 
-  const onAdd = async () => {
+  const addFriend = async () => {
     setError('');
-    const trimmed = name.trim();
-    if (!trimmed) {
-      setError('Please enter a name.');
-      return;
-    }
-    if (!relationship) {
-      setError('Please choose a relationship.');
-      return;
-    }
+    const n = name.trim();
+    if (!n) return setError('Please enter a name.');
 
     const doc = {
-      Name: trimmed,
+      Name: n,
       Relationship: relationship,
       PhoneNumber: phone || null,
       Birthday_day: toISO(birthday),
@@ -108,232 +88,153 @@ export default function FriendsView() {
     };
 
     try {
-      const created = await databases.createDocument(DB, COL, ID.unique(), doc);
+      const created = await databases.createDocument(DB_ID, COL_ID, ID.unique(), doc);
       setFriends((prev) => [...prev, created].sort((a, b) =>
         (a.Name || '').localeCompare(b.Name || '', undefined, { sensitivity: 'base' })
       ));
-      // reset form but keep relationship to speed up multiple adds
-      setName('');
-      setPhone('');
-      setBirthday('');
-      setLastReceived('');
-      setLastSent('');
-      setLastCatchup('');
-    } catch (err) {
-      setError(err?.message || 'Failed to add friend');
+      setName(''); setRelationship('Friend'); setPhone('');
+      setBirthday(''); setLastReceived(''); setLastSent(''); setLastCatchup('');
+      setShowAdd(false);
+    } catch (e) {
+      setError(e?.message || 'Failed to add friend');
     }
   };
 
-  const onDelete = async (id) => {
-    setError('');
+  const removeFriend = async (id) => {
     try {
-      await databases.deleteDocument(DB, COL, id);
+      await databases.deleteDocument(DB_ID, COL_ID, id);
       setFriends((prev) => prev.filter((f) => f.$id !== id));
-    } catch (err) {
-      setError(err?.message || 'Failed to delete');
+    } catch (e) {
+      setError(e?.message || 'Failed to delete');
     }
   };
 
-  const rows = useMemo(() => friends, [friends]);
+  const onText = (friend) => {
+    const digits = (friend.PhoneNumber || '').replace(/\D+/g, '');
+    if (!digits) return alert('No phone number saved for this friend.');
+    try {
+      window.location.href = `sms:${digits}`;
+      setTimeout(() => { window.location.href = `tel:${digits}`; }, 120);
+    } catch {
+      window.location.href = `tel:${digits}`;
+    }
+  };
+
+  const onPlan = (friend) => {
+    const first = (friend.Name || '').split(' ')[0] || 'there';
+    const subject = encodeURIComponent('Catch up?');
+    const body = encodeURIComponent(`Hi ${first},\n\nShall we plan a catch-up soon?\n\n– Sent from CatchUp`);
+    window.location.href = `mailto:?subject=${subject}&body=${body}`;
+  };
+
+  const filtered = useMemo(() => {
+    const term = search.trim().toLowerCase();
+    return friends
+      .filter((f) => {
+        if (chip === 'Close')  return ['Close Friend', 'Best Friend'].includes(f.Relationship);
+        if (chip === 'Family') return (f.Relationship || '').toLowerCase() === 'family';
+        return true;
+      })
+      .filter((f) => {
+        if (!term) return true;
+        const bag = `${f.Name || ''} ${f.Relationship || ''} ${f.PhoneNumber || ''}`.toLowerCase();
+        return bag.includes(term);
+      })
+      .sort((a, b) => (daysSince(b.Last_catchup) ?? -1) - (daysSince(a.Last_catchup) ?? -1));
+  }, [friends, chip, search]);
 
   return (
     <div>
-      <h1>CatchUp</h1>
-
-      <div style={{ marginBottom: 12, opacity: 0.9 }}>
-        <small>{connectedMsg}</small>
+      {/* Header */}
+      <div className="cu-header">
+        <div>
+          <div className="cu-kicker">CatchUp</div>
+          <h1 className="cu-title">Friends</h1>
+        </div>
+        <button className="cu-fab" onClick={() => setShowAdd((x) => !x)} aria-label="Add">+</button>
       </div>
 
-      {error && (
-        <div style={{
-          background: '#ff4d4f', color: 'white', padding: '8px 12px',
-          borderRadius: 6, marginBottom: 12
-        }}>
-          {error}
-        </div>
+      <div className="cu-status"><small>{status}</small></div>
+      {error && <div className="cu-error">{error}</div>}
+
+      {/* Search + chips */}
+      <div className="cu-search">
+        <span className="cu-search-icon" aria-hidden>🔎</span>
+        <input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search friends…" />
+      </div>
+      <div className="cu-chips">
+        {['All', 'Close', 'Family'].map((c) => (
+          <button key={c} className={`cu-chip ${chip === c ? 'active' : ''}`} onClick={() => setChip(c)}>{c}</button>
+        ))}
+      </div>
+
+      {/* Add card */}
+      {showAdd && (
+        <section className="cu-card cu-add">
+          <h3>Add a friend</h3>
+          <div className="cu-grid">
+            <label>Friend name
+              <input value={name} onChange={(e) => setName(e.target.value)} placeholder="e.g. Alex" />
+            </label>
+            <label>Relationship
+              <select value={relationship} onChange={(e) => setRelationship(e.target.value)}>
+                <option>Friend</option>
+                <option>Close Friend</option>
+                <option>Best Friend</option>
+                <option>Family</option>
+                <option>Colleague</option>
+                <option>Acquaintance</option>
+              </select>
+            </label>
+            <label>Phone
+              <input type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="07…" />
+            </label>
+            <label>Birthday
+              <input type="date" value={birthday} onChange={(e) => setBirthday(e.target.value)} />
+            </label>
+            <label>Last message received
+              <input type="date" value={lastReceived} onChange={(e) => setLastReceived(e.target.value)} />
+            </label>
+            <label>Last message sent
+              <input type="date" value={lastSent} onChange={(e) => setLastSent(e.target.value)} />
+            </label>
+            <label>Last catch-up
+              <input type="date" value={lastCatchup} onChange={(e) => setLastCatchup(e.target.value)} />
+            </label>
+            <div className="cu-actions">
+              <button onClick={addFriend}>Add</button>
+              <button className="cu-secondary" onClick={() => setShowAdd(false)}>Cancel</button>
+            </div>
+          </div>
+        </section>
       )}
 
-      {/* Column toggles */}
-      <section style={{ marginBottom: 12 }}>
-        <strong>Show columns:</strong>{' '}
-        <label style={{ marginRight: 12 }}>
-          <input
-            type="checkbox"
-            checked={show.relationship}
-            onChange={(e) => setShow((s) => ({ ...s, relationship: e.target.checked }))}
-          />{' '}
-          Relationship
-        </label>
-        <label style={{ marginRight: 12 }}>
-          <input
-            type="checkbox"
-            checked={show.phone}
-            onChange={(e) => setShow((s) => ({ ...s, phone: e.target.checked }))}
-          />{' '}
-          Phone
-        </label>
-        <label style={{ marginRight: 12 }}>
-          <input
-            type="checkbox"
-            checked={show.birthday}
-            onChange={(e) => setShow((s) => ({ ...s, birthday: e.target.checked }))}
-          />{' '}
-          Birthday
-        </label>
-        <label style={{ marginRight: 12 }}>
-          <input
-            type="checkbox"
-            checked={show.received}
-            onChange={(e) => setShow((s) => ({ ...s, received: e.target.checked }))}
-          />{' '}
-          Last message received
-        </label>
-        <label style={{ marginRight: 12 }}>
-          <input
-            type="checkbox"
-            checked={show.sent}
-            onChange={(e) => setShow((s) => ({ ...s, sent: e.target.checked }))}
-          />{' '}
-          Last message sent
-        </label>
-        <label>
-          <input
-            type="checkbox"
-            checked={show.catchup}
-            onChange={(e) => setShow((s) => ({ ...s, catchup: e.target.checked }))}
-          />{' '}
-          Last catch-up
-        </label>
-      </section>
-
-      {/* Add friend form */}
-      <section style={{ marginBottom: 18 }}>
-        <h3>Add a friend</h3>
-
-        <div style={{ display: 'grid', gap: 8, gridTemplateColumns: 'repeat(auto-fit,minmax(220px,1fr))' }}>
-          <div>
-            <label>Friend name (required)</label>
-            <input
-              type="text"
-              placeholder="e.g. Alex"
-              value={name}
-              onChange={(e) => setName(e.target.value)}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div>
-            <label>Relationship (required)</label>
-            <select
-              value={relationship}
-              onChange={(e) => setRelationship(e.target.value)}
-              style={{ width: '100%' }}
-            >
-              <option value="Friend">Friend</option>
-              <option value="Close Friend">Close Friend</option>
-              <option value="Best Friend">Best Friend</option>
-              <option value="Family">Family</option>
-              <option value="Colleague">Colleague</option>
-              <option value="Acquaintance">Acquaintance</option>
-            </select>
-          </div>
-
-          <div>
-            <label>Phone (optional)</label>
-            <input
-              type="tel"
-              placeholder="07…"
-              value={phone}
-              onChange={(e) => setPhone(e.target.value)}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div>
-            <label>Birthday (optional)</label>
-            <input
-              type="date"
-              value={birthday}
-              onChange={(e) => setBirthday(e.target.value)}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div>
-            <label>Last message received (optional)</label>
-            <input
-              type="date"
-              value={lastReceived}
-              onChange={(e) => setLastReceived(e.target.value)}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div>
-            <label>Last message sent (optional)</label>
-            <input
-              type="date"
-              value={lastSent}
-              onChange={(e) => setLastSent(e.target.value)}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div>
-            <label>Last catch-up (optional)</label>
-            <input
-              type="date"
-              value={lastCatchup}
-              onChange={(e) => setLastCatchup(e.target.value)}
-              style={{ width: '100%' }}
-            />
-          </div>
-
-          <div style={{ alignSelf: 'end' }}>
-            <button onClick={onAdd}>Add</button>
-          </div>
-        </div>
-      </section>
-
-      {/* Friends list */}
-      <section>
+      {/* List */}
+      <section className="cu-list">
         <h3>Friends</h3>
         {loading ? (
           <p>Loading…</p>
-        ) : rows.length === 0 ? (
-          <p>No friends found.</p>
+        ) : filtered.length === 0 ? (
+          <p>No friends match your search.</p>
         ) : (
-          <ul style={{ listStyle: 'none', padding: 0, margin: 0 }}>
-            {rows.map((f) => (
-              <li key={f.$id}
-                  style={{
-                    display: 'grid',
-                    gridTemplateColumns: '1fr auto',
-                    gap: 8,
-                    padding: '10px 0',
-                    borderBottom: '1px solid rgba(255,255,255,0.1)'
-                  }}>
-                <div>
-                  <div style={{ fontWeight: 600 }}>
-                    {f.Name || '(no name)'}
-                    {show.relationship && f.Relationship ? (
-                      <span style={{ fontWeight: 400, opacity: 0.85 }}> — {f.Relationship}</span>
-                    ) : null}
-                  </div>
-
-                  {/* Optional details line */}
-                  <div style={{ fontSize: 13, opacity: 0.9 }}>
-                    {show.phone && f.PhoneNumber ? <span>☎ {f.PhoneNumber} · </span> : null}
-                    {show.birthday && f.Birthday_day ? <span>🎂 {fmtDate(f.Birthday_day)} · </span> : null}
-                    {show.received && f.Last_Message_Received ? <span>📥 {fmtDate(f.Last_Message_Received)} · </span> : null}
-                    {show.sent && f.Last_Message_Sent ? <span>📤 {fmtDate(f.Last_Message_Sent)} · </span> : null}
-                    {show.catchup && f.Last_catchup ? <span>👋 {fmtDate(f.Last_catchup)}</span> : null}
+          <ul className="cu-items">
+            {filtered.map((f) => (
+              <li key={f.$id} className="cu-item">
+                <div className="cu-left">
+                  <div className="cu-avatar" aria-hidden>{String(f.Name || '?').trim().charAt(0).toUpperCase()}</div>
+                </div>
+                <div className="cu-mid">
+                  <div className="cu-name">{f.Name || '(no name)'}</div>
+                  <div className="cu-row">
+                    {f.Relationship && <span className="cu-pill">{f.Relationship}</span>}
+                    <span className="cu-pill cu-pill-muted">{sinceLabel(f.Last_catchup)}</span>
                   </div>
                 </div>
-
-                <div>
-                  <button onClick={() => onDelete(f.$id)}>Delete</button>
+                <div className="cu-right">
+                  <button className="cu-ghost" onClick={() => onText(f)}>Text</button>
+                  <button className="cu-primary" onClick={() => onPlan(f)}>Plan</button>
                 </div>
+                <button className="cu-del" onClick={() => removeFriend(f.$id)} aria-label="Delete">×</button>
               </li>
             ))}
           </ul>

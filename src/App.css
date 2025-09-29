@@ -1,68 +1,80 @@
 /* src/App.css */
 
-/* (Keep your own styles above if you want; this is a clean baseline) */
-h1 {
-  font-size: 2.2rem;
-  margin: 0 0 8px;
-}
-
+/* Base */
+h1 { font-size: 2.2rem; margin: 0 0 8px; }
 button {
-  border-radius: 8px;
-  border: 1px solid transparent;
-  padding: 0.5rem 0.9rem;
-  font-size: 1rem;
-  font-weight: 500;
-  background: #1a1a1a;
-  color: #fff;
-  cursor: pointer;
+  border-radius: 8px; border: 1px solid transparent;
+  padding: 0.5rem 0.9rem; font-size: 1rem; font-weight: 500;
+  background: #1a1a1a; color: #fff; cursor: pointer;
 }
 button:hover { border-color: #646cff; }
+.empty { text-align: center; margin-top: 24px; opacity: .85; }
 
-/* ---- App shell + bottom tab bar ---- */
-.app-shell {
-  min-height: 100vh;
-  display: flex;
-  flex-direction: column;
-}
-
-.page {
-  flex: 1;
-  padding: 16px 16px 88px; /* space for fixed tab bar */
-}
+/* App shell + bottom tab bar */
+.app-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.page { flex: 1; padding: 16px 16px 88px; } /* space for fixed tab bar */
 
 .tabbar {
-  position: fixed;
-  left: 0;
-  right: 0;
-  bottom: 0;
-  height: 64px;
-  background: rgba(20, 20, 20, 0.95);
-  border-top: 1px solid rgba(255, 255, 255, 0.08);
-  display: grid;
-  grid-template-columns: repeat(3, 1fr);
-  align-items: center;
-  z-index: 100;
-  backdrop-filter: blur(8px);
+  position: fixed; left: 0; right: 0; bottom: 0; height: 64px;
+  background: rgba(20,20,20,0.95);
+  border-top: 1px solid rgba(255,255,255,0.08);
+  display: grid; grid-template-columns: repeat(3,1fr); align-items: center;
+  z-index: 100; backdrop-filter: blur(8px);
 }
-
 .tab-btn {
-  background: none;
-  border: none;
-  color: #ddd;
-  font-size: 14px;
-  font-weight: 600;
-  padding: 8px 12px;
-  cursor: pointer;
+  background: none; border: none; color: #ddd; font-size: 14px; font-weight: 600; padding: 8px 12px; cursor: pointer;
+}
+.tab-btn.active { color: #fff; font-weight: 800; }
+
+/* ===== CatchUp Friends styles ===== */
+.cu-header{
+  display:flex; align-items:flex-start; justify-content:space-between;
+  padding:16px; background:#151a22; border-radius:16px; margin-bottom:12px;
+}
+.cu-kicker{ color:#8ab4ff; font-weight:700; font-size:14px; letter-spacing:0.3px; }
+.cu-title{ margin:4px 0 0; font-size:28px; }
+.cu-fab{
+  width:44px; height:44px; border-radius:50%;
+  background:#1f6feb; color:#fff; border:none; font-size:22px; line-height:0;
 }
 
-.tab-btn.active {
-  color: #fff;
-  font-weight: 800;
-}
+.cu-status{ margin:8px 0 0; opacity:.9; }
+.cu-error{ background:#ff4d4f; color:#fff; padding:8px 12px; border-radius:8px; margin:10px 0; }
 
-.empty {
-  text-align: center;
-  margin-top: 24px;
-  opacity: 0.85;
-}
+.cu-search{ margin:12px 0; display:flex; align-items:center; gap:10px;
+  background:#1a1f29; border-radius:14px; padding:12px 14px; }
+.cu-search input{ flex:1; background:transparent; color:#e6edf3; border:none; outline:none; font-size:16px; }
+.cu-search-icon{ opacity:.7; }
 
+.cu-chips{ display:flex; gap:10px; margin:8px 0 16px; flex-wrap:wrap; }
+.cu-chip{ background:#242b36; color:#c9d1d9; border:none; padding:10px 16px; border-radius:18px; }
+.cu-chip.active{ background:#1f6feb; color:#fff; font-weight:700; }
+
+.cu-card{ background:#151a22; border-radius:16px; padding:14px; margin-bottom:12px; }
+.cu-add .cu-grid{ display:grid; gap:10px; grid-template-columns: repeat(auto-fit, minmax(220px,1fr)); }
+.cu-add input, .cu-add select{ width:100%; padding:10px; border-radius:10px; border:1px solid #2d3746; background:#0f1115; color:#e6edf3; }
+.cu-actions{ display:flex; gap:10px; margin-top:2px; }
+.cu-secondary{ background:#1a1f29; color:#c9d1d9; }
+
+.cu-list h3{ margin:12px 0; }
+.cu-items{ list-style:none; padding:0; margin:0; display:flex; flex-direction:column; gap:12px; }
+.cu-item{
+  position:relative;
+  display:grid; grid-template-columns: 56px 1fr auto; gap:12px;
+  align-items:center; background:#151a22; border-radius:16px; padding:12px;
+}
+.cu-avatar{
+  width:44px; height:44px; border-radius:50%;
+  display:grid; place-items:center; background:#1a1f29; color:#fff; font-weight:700;
+}
+.cu-name{ font-weight:700; }
+.cu-row{ display:flex; gap:8px; margin-top:6px; flex-wrap:wrap; }
+.cu-pill{ background:#242b36; color:#c9d1d9; border-radius:14px; padding:6px 10px; font-size:12px; }
+.cu-pill-muted{ background:#2d3746; color:#e6edf3; }
+
+.cu-right{ display:flex; gap:8px; }
+.cu-ghost{ background:#1a1f29; color:#c9d1d9; border:1px solid #2d3746; }
+.cu-primary{ background:#1f6feb; color:#fff; }
+.cu-del{
+  position:absolute; top:6px; right:8px; background:transparent; border:none; color:#b7c0cb; font-size:20px; line-height:1;
+}

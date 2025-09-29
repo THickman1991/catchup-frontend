@@ -1,6 +1,10 @@
 // src/main.jsx
-import { registerSW } from 'virtual:pwa-register';
-registerSW({ immediate: true }); // enables install/update for the PWA
+// Register PWA service worker only in production to avoid caching during dev
+if (import.meta.env.PROD) {
+  import('virtual:pwa-register').then(({ registerSW }) => {
+    registerSW({ immediate: true });
+  });
+}
 
 import React from 'react';
 import ReactDOM from 'react-dom/client';
